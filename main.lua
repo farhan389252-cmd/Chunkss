@@ -34,7 +34,7 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = titleBar
 
-local titleFix = Instance.new("Frame") -- tapa las esquinas inferiores de la barra
+local titleFix = Instance.new("Frame")
 titleFix.Size = UDim2.new(1, 0, 0, 12)
 titleFix.Position = UDim2.new(0, 0, 1, -12)
 titleFix.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
@@ -45,7 +45,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Chunk Exporter — Phase 2: Galaxy Introduction"
+titleLabel.Text = "Chunk Exporter — Cutscene"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 15
@@ -117,12 +117,15 @@ local copyCorner = Instance.new("UICorner")
 copyCorner.CornerRadius = UDim.new(0, 8)
 copyCorner.Parent = copyBtn
 
--- ===== OBTENER Y ORDENAR DATOS =====
-local eventController = RS:WaitForChild("Controllers"):WaitForChild("EventController")
-local phase2 = eventController:WaitForChild("Phase 2: Galaxy Introduction")
+-- ===== OBTENER Y ORDENAR DATOS (NUEVA RUTA) =====
+local controllers = RS:WaitForChild("Controllers")
+local eventController = controllers:WaitForChild("EventController")
+local events = eventController:WaitForChild("Events")
+local phase2 = events:WaitForChild("Phase 2: Galaxy Introduction")
+local cutscene = phase2:WaitForChild("Cutscene")
 
 local chunks = {}
-for _, child in ipairs(phase2:GetChildren()) do
+for _, child in ipairs(cutscene:GetChildren()) do
 	local num = child.Name:match("^Chunk_(%d+)$")
 	if num and child:IsA("StringValue") then
 		table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
