@@ -99,7 +99,7 @@ textBox.TextYAlignment = Enum.TextYAlignment.Top
 textBox.TextColor3 = Color3.fromRGB(220, 220, 220)
 textBox.Font = Enum.Font.Code
 textBox.TextSize = 14
-textBox.Text = "Cargando chunks..."
+textBox.Text = ""
 textBox.Parent = scrollFrame
 
 -- ===== BOTÓN COPIAR =====
@@ -117,13 +117,33 @@ local copyCorner = Instance.new("UICorner")
 copyCorner.CornerRadius = UDim.new(0, 8)
 copyCorner.Parent = copyBtn
 
--- ===== OBTENER Y ORDENAR DATOS (NUEVA RUTA) =====
+-- ===== FUNCIÓN PARA IR AGREGANDO LÍNEAS DE PROGRESO =====
+local log = {}
+local function status(msg, delay)
+	table.insert(log, msg)
+	textBox.Text = table.concat(log, "\n")
+	task.wait(delay or 0.4)
+end
+
+-- ===== NAVEGACIÓN CON MENSAJES =====
+status("Entrando a ReplicatedStorage...")
 local controllers = RS:WaitForChild("Controllers")
+
+status("Entré a Controllers...")
 local eventController = controllers:WaitForChild("EventController")
+
+status("Entré ahora a EventController...")
 local events = eventController:WaitForChild("Events")
+
+status("Entrando a Events...")
 local phase2 = events:WaitForChild("Phase 2: Galaxy Introduction")
+
+status("Entre ahorita sí a Phase 2: Galaxy Introduction...")
 local cutscene = phase2:WaitForChild("Cutscene")
 
+status("Cutscene...")
+
+-- ===== OBTENER Y ORDENAR CHUNKS =====
 local chunks = {}
 for _, child in ipairs(cutscene:GetChildren()) do
 	local num = child.Name:match("^Chunk_(%d+)$")
@@ -134,13 +154,18 @@ end
 
 table.sort(chunks, function(a, b) return a.n < b.n end)
 
+status("Listo!")
+
 local lines = {}
 for _, c in ipairs(chunks) do
 	table.insert(lines, c.name .. ": " .. c.value)
 end
 
 local result = table.concat(lines, "\n")
-textBox.Text = result
+
+-- Añadir los chunks al final del log de progreso
+table.insert(log, result)
+textBox.Text = table.concat(log, "\n")
 
 -- ===== COPIAR =====
 copyBtn.MouseButton1Click:Connect(function()
