@@ -70,10 +70,22 @@ closeBtn.MouseButton1Click:Connect(function()
 	gui:Destroy()
 end)
 
--- ===== ÁREA DE TEXTO (SCROLLABLE) =====
+-- ===== ÁREA DE STATUS (arriba, chica) =====
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 0, 46)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = ""
+statusLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 13
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = main
+
+-- ===== ÁREA DE TEXTO (SCROLLABLE, con lista de labels) =====
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(1, -20, 1, -95)
-scrollFrame.Position = UDim2.new(0, 10, 0, 50)
+scrollFrame.Size = UDim2.new(1, -20, 1, -120)
+scrollFrame.Position = UDim2.new(0, 10, 0, 70)
 scrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
 scrollFrame.BorderSizePixel = 0
 scrollFrame.ScrollBarThickness = 6
@@ -85,22 +97,17 @@ local scrollCorner = Instance.new("UICorner")
 scrollCorner.CornerRadius = UDim.new(0, 8)
 scrollCorner.Parent = scrollFrame
 
-local textBox = Instance.new("TextBox")
-textBox.Size = UDim2.new(1, -16, 0, 0)
-textBox.Position = UDim2.new(0, 8, 0, 8)
-textBox.AutomaticSize = Enum.AutomaticSize.Y
-textBox.BackgroundTransparency = 1
-textBox.MultiLine = true
-textBox.ClearTextOnFocus = false
-textBox.TextEditable = false
-textBox.TextWrapped = true
-textBox.TextXAlignment = Enum.TextXAlignment.Left
-textBox.TextYAlignment = Enum.TextYAlignment.Top
-textBox.TextColor3 = Color3.fromRGB(220, 220, 220)
-textBox.Font = Enum.Font.Code
-textBox.TextSize = 14
-textBox.Text = ""
-textBox.Parent = scrollFrame
+local listLayout = Instance.new("UIListLayout")
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 6)
+listLayout.Parent = scrollFrame
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 8)
+padding.PaddingLeft = UDim.new(0, 8)
+padding.PaddingRight = UDim.new(0, 8)
+padding.PaddingBottom = UDim.new(0, 8)
+padding.Parent = scrollFrame
 
 -- ===== BOTÓN COPIAR =====
 local copyBtn = Instance.new("TextButton")
@@ -117,21 +124,69 @@ local copyCorner = Instance.new("UICorner")
 copyCorner.CornerRadius = UDim.new(0, 8)
 copyCorner.Parent = copyBtn
 
--- ===== LOG / STATUS =====
-local log = {}
+-- ===== STATUS/LOG FUNCTIONS =====
 local function status(msg, delay)
-	table.insert(log, msg)
-	textBox.Text = table.concat(log, "\n")
+	statusLabel.Text = msg
+	statusLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
 	task.wait(delay or 0.4)
 end
 
 local function errorMsg(msg)
-	table.insert(log, "[ERROR] " .. msg)
-	textBox.Text = table.concat(log, "\n")
-	textBox.TextColor3 = Color3.fromRGB(255, 90, 90)
+	statusLabel.Text = "[ERROR] " .. msg
+	statusLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+	warn("[ChunkExporter] " .. msg)
 end
 
--- ===== BUSCAR CON TIMEOUT + MANEJO DE ERROR =====
+-- Crea una línea de debug visible dentro del scroll (para diagnosticar)
+local function addDebugLine(text, color)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 0, 18)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.TextColor3 = color or Color3.fromRGB(255, 200, 100)
+	lbl.Font = Enum.Font.Code
+	lbl.TextSize = 13
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = scrollFrame
+	return lbl
+end
+
+-- Crea un bloque de texto para un chunk (TextLabel individual, no un solo TextBox gigante)
+local function addChunkLabel(name, value)
+	local container = Instance.new("Frame")
+	container.Size = UDim2.new(1, 0, 0, 0)
+	container.AutomaticSize = Enum.AutomaticSize.Y
+	container.BackgroundTransparency = 1
+	container.Parent = scrollFrame
+
+	local header = Instance.new("TextLabel")
+	header.Size = UDim2.new(1, 0, 0, 18)
+	header.BackgroundTransparency = 1
+	header.Text = name .. ":"
+	header.TextColor3 = Color3.fromRGB(120, 200, 255)
+	header.Font = Enum.Font.GothamBold
+	header.TextSize = 14
+	header.TextXAlignment = Enum.TextXAlignment.Left
+	header.Parent = container
+
+	local valueLabel = Instance.new("TextLabel")
+	valueLabel.Size = UDim2.new(1, 0, 0, 0)
+	valueLabel.Position = UDim2.new(0, 0, 0, 18)
+	valueLabel.AutomaticSize = Enum.AutomaticSize.Y
+	valueLabel.BackgroundTransparency = 1
+	valueLabel.Text = (value ~= "" and value) or "(vacío)"
+	valueLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+	valueLabel.Font = Enum.Font.Code
+	valueLabel.TextSize = 12
+	valueLabel.TextWrapped = true
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+	valueLabel.TextYAlignment = Enum.TextYAlignment.Top
+	valueLabel.Parent = container
+
+	container.Size = UDim2.new(1, 0, 0, 18)
+end
+
+-- ===== BÚSQUEDA SEGURA =====
 local function safeWaitForChild(parent, name, timeout)
 	timeout = timeout or 5
 	local ok, result = pcall(function()
@@ -146,12 +201,13 @@ local function safeWaitForChild(parent, name, timeout)
 		errorMsg(result)
 		return nil
 	end
-
 	return result
 end
 
 -- ===== NAVEGACIÓN =====
-local success = pcall(function()
+local fullResult = ""
+
+local ok, err = pcall(function()
 
 	status("Entrando a ReplicatedStorage...")
 	local controllers = safeWaitForChild(RS, "Controllers")
@@ -175,9 +231,16 @@ local success = pcall(function()
 
 	status("Cutscene...")
 
+	-- DEBUG: mostrar TODOS los hijos de Cutscene, sean o no StringValue
+	local allChildren = cutscene:GetChildren()
+	addDebugLine("Hijos totales en Cutscene: " .. #allChildren)
+	for _, child in ipairs(allChildren) do
+		addDebugLine("  -> " .. child.Name .. " (" .. child.ClassName .. ")", Color3.fromRGB(150,150,150))
+	end
+
 	-- ===== OBTENER Y ORDENAR CHUNKS =====
 	local chunks = {}
-	for _, child in ipairs(cutscene:GetChildren()) do
+	for _, child in ipairs(allChildren) do
 		local num = child.Name:match("^Chunk_(%d+)$")
 		if num and child:IsA("StringValue") then
 			table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
@@ -185,42 +248,47 @@ local success = pcall(function()
 	end
 
 	if #chunks == 0 then
-		errorMsg("No se encontraron StringValues con formato Chunk_N dentro de Cutscene")
+		errorMsg("No se encontraron StringValues con formato Chunk_N dentro de Cutscene (revisa la lista de arriba)")
 		return
 	end
 
 	table.sort(chunks, function(a, b) return a.n < b.n end)
 
-	status("Listo!")
+	status("Listo! (" .. #chunks .. " chunks encontrados)")
 
 	local lines = {}
 	for _, c in ipairs(chunks) do
+		addChunkLabel(c.name, c.value)
 		table.insert(lines, c.name .. ": " .. c.value)
 	end
 
-	local result = table.concat(lines, "\n")
-	table.insert(log, result)
-	textBox.Text = table.concat(log, "\n")
-
-	-- ===== COPIAR =====
-	copyBtn.MouseButton1Click:Connect(function()
-		local ok = pcall(function()
-			setclipboard(result)
-		end)
-
-		if ok then
-			copyBtn.Text = "¡Copiado!"
-		else
-			copyBtn.Text = "Error al copiar"
-			errorMsg("No se pudo usar setclipboard: revisa si está disponible fuera del Command Bar.")
-		end
-
-		task.wait(1.5)
-		copyBtn.Text = "Copiar al portapapeles"
-	end)
+	fullResult = table.concat(lines, "\n")
+	addDebugLine("Longitud total del texto: " .. #fullResult .. " caracteres", Color3.fromRGB(100,255,150))
 
 end)
 
-if not success then
-	errorMsg("Ocurrió un error inesperado durante la ejecución del script.")
+if not ok then
+	errorMsg("Error inesperado: " .. tostring(err))
 end
+
+-- ===== COPIAR =====
+copyBtn.MouseButton1Click:Connect(function()
+	if fullResult == "" then
+		errorMsg("No hay datos para copiar todavía.")
+		return
+	end
+
+	local success, err2 = pcall(function()
+		setclipboard(fullResult)
+	end)
+
+	if success then
+		copyBtn.Text = "¡Copiado!"
+	else
+		copyBtn.Text = "Error al copiar"
+		errorMsg("No se pudo usar setclipboard: " .. tostring(err2))
+	end
+
+	task.wait(1.5)
+	copyBtn.Text = "Copiar al portapapeles"
+end)
