@@ -2,6 +2,7 @@
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -13,8 +14,8 @@ gui.ResetOnSpawn = false
 gui.Parent = playerGui
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0.9, 0, 0.75, 0)
-main.Position = UDim2.new(0.05, 0, 0.12, 0)
+main.Size = UDim2.new(0.9, 0, 0.85, 0)
+main.Position = UDim2.new(0.05, 0, 0.07, 0)
 main.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 main.BorderSizePixel = 0
 main.Parent = gui
@@ -45,7 +46,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Chunk Exporter — Cutscene"
+titleLabel.Text = "Chunk Exporter — Hastebin"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 15
@@ -102,38 +103,32 @@ listLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listLayout.Padding = UDim.new(0, 6)
 listLayout.Parent = scrollFrame
 
-local padding = Instance.new("UIPadding")
-padding.PaddingTop = UDim.new(0, 8)
-padding.PaddingLeft = UDim.new(0, 8)
-padding.PaddingRight = UDim.new(0, 8)
-padding.PaddingBottom = UDim.new(0, 8)
-padding.Parent = scrollFrame
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 8)
+pad.PaddingLeft = UDim.new(0, 8)
+pad.PaddingRight = UDim.new(0, 8)
+pad.PaddingBottom = UDim.new(0, 8)
+pad.Parent = scrollFrame
 
--- ===== BOTÓN COPIAR TODO =====
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(1, -20, 0, 36)
-copyBtn.Position = UDim2.new(0, 10, 1, -46)
-copyBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 220)
-copyBtn.Text = "Copiar TODO al portapapeles"
-copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 15
-copyBtn.Parent = main
+-- ===== BOTÓN SUBIR TODO =====
+local uploadBtn = Instance.new("TextButton")
+uploadBtn.Size = UDim2.new(1, -20, 0, 36)
+uploadBtn.Position = UDim2.new(0, 10, 1, -46)
+uploadBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 100)
+uploadBtn.Text = "⬆ Subir todos los chunks a Hastebin"
+uploadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+uploadBtn.Font = Enum.Font.GothamBold
+uploadBtn.TextSize = 14
+uploadBtn.Parent = main
 
-local copyCorner = Instance.new("UICorner")
-copyCorner.CornerRadius = UDim.new(0, 8)
-copyCorner.Parent = copyBtn
+local uploadCorner = Instance.new("UICorner")
+uploadCorner.CornerRadius = UDim.new(0, 8)
+uploadCorner.Parent = uploadBtn
 
 -- ===== HELPERS =====
-local function status(msg)
+local function setStatus(msg, color)
     statusLabel.Text = msg
-    statusLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
-end
-
-local function errorMsg(msg)
-    statusLabel.Text = "[ERROR] " .. msg
-    statusLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
-    warn("[ChunkExporter] " .. msg)
+    statusLabel.TextColor3 = color or Color3.fromRGB(150, 200, 255)
 end
 
 local function addDebugLine(text, color)
@@ -143,21 +138,27 @@ local function addDebugLine(text, color)
     lbl.Text = text
     lbl.TextColor3 = color or Color3.fromRGB(255, 200, 100)
     lbl.Font = Enum.Font.Code
-    lbl.TextSize = 13
+    lbl.TextSize = 12
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = scrollFrame
 end
 
-local CHUNK_SIZE = 50000 -- caracteres por parte copiable
-
--- Crea un bloque por chunk con botón "Copiar parte N/M"
-local function addChunkBlock(chunkName, chunkValue, layoutOrder)
-    -- Dividir en partes de CHUNK_SIZE
-    local parts = {}
-    for i = 1, #chunkValue, CHUNK_SIZE do
-        table.insert(parts, chunkValue:sub(i, i + CHUNK_SIZE - 1))
+-- Sube texto a Hastebin y devuelve el link
+local function uploadToHastebin(text)
+    local response = HttpService:PostAsync(
+        "https://hastebin.com/documents",
+        text,
+        Enum.HttpContentType.TextPlain
+    )
+    local data = HttpService:JSONDecode(response)
+    if data and data.key then
+        return "https://hastebin.com/" .. data.key
     end
+    return nil
+end
 
+-- Crea bloque visual por chunk con botón de subir y link
+local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(1, 0, 0, 0)
     container.AutomaticSize = Enum.AutomaticSize.Y
@@ -170,23 +171,23 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = container
 
-    local pad = Instance.new("UIPadding")
-    pad.PaddingTop = UDim.new(0, 6)
-    pad.PaddingLeft = UDim.new(0, 8)
-    pad.PaddingRight = UDim.new(0, 8)
-    pad.PaddingBottom = UDim.new(0, 6)
-    pad.Parent = container
+    local innerPad = Instance.new("UIPadding")
+    innerPad.PaddingTop = UDim.new(0, 6)
+    innerPad.PaddingLeft = UDim.new(0, 8)
+    innerPad.PaddingRight = UDim.new(0, 8)
+    innerPad.PaddingBottom = UDim.new(0, 6)
+    innerPad.Parent = container
 
     local innerLayout = Instance.new("UIListLayout")
     innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
     innerLayout.Padding = UDim.new(0, 4)
     innerLayout.Parent = container
 
-    -- Header del chunk
+    -- Header
     local header = Instance.new("TextLabel")
     header.Size = UDim2.new(1, 0, 0, 20)
     header.BackgroundTransparency = 1
-    header.Text = chunkName .. " — " .. #chunkValue .. " chars — " .. #parts .. " parte(s)"
+    header.Text = chunkName .. " — " .. #chunkValue .. " chars"
     header.TextColor3 = Color3.fromRGB(120, 200, 255)
     header.Font = Enum.Font.GothamBold
     header.TextSize = 13
@@ -194,63 +195,106 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     header.LayoutOrder = 0
     header.Parent = container
 
-    -- Botón por cada parte
-    for i, part in ipairs(parts) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, 0, 0, 30)
-        btn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
-        btn.Text = "📋 Copiar parte " .. i .. "/" .. #parts .. " (" .. #part .. " chars)"
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 12
-        btn.LayoutOrder = i
-        btn.Parent = container
+    -- Link label (se llena después de subir)
+    local linkLabel = Instance.new("TextLabel")
+    linkLabel.Size = UDim2.new(1, 0, 0, 18)
+    linkLabel.BackgroundTransparency = 1
+    linkLabel.Text = "Sin subir aún"
+    linkLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    linkLabel.Font = Enum.Font.Code
+    linkLabel.TextSize = 12
+    linkLabel.TextXAlignment = Enum.TextXAlignment.Left
+    linkLabel.TextWrapped = true
+    linkLabel.LayoutOrder = 1
+    linkLabel.Parent = container
 
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 6)
-        btnCorner.Parent = btn
+    -- Botón subir este chunk
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
+    btn.Text = "⬆ Subir este chunk"
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.LayoutOrder = 2
+    btn.Parent = container
 
-        local capturedPart = part
-        local capturedI = i
-        local capturedTotal = #parts
-        btn.MouseButton1Click:Connect(function()
-            local ok, err2 = pcall(function()
-                setclipboard(capturedPart)
-            end)
-            if ok then
-                btn.Text = "✅ ¡Copiado parte " .. capturedI .. "/" .. capturedTotal .. "!"
-                status("Copiado: " .. chunkName .. " parte " .. capturedI .. "/" .. capturedTotal)
-            else
-                btn.Text = "❌ Error al copiar"
-                errorMsg("setclipboard falló: " .. tostring(err2))
-            end
-            task.wait(1.5)
-            btn.Text = "📋 Copiar parte " .. capturedI .. "/" .. capturedTotal .. " (" .. #capturedPart .. " chars)"
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = btn
+
+    -- Botón copiar link
+    local copyLinkBtn = Instance.new("TextButton")
+    copyLinkBtn.Size = UDim2.new(1, 0, 0, 30)
+    copyLinkBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    copyLinkBtn.Text = "📋 Copiar link"
+    copyLinkBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    copyLinkBtn.Font = Enum.Font.GothamBold
+    copyLinkBtn.TextSize = 12
+    copyLinkBtn.LayoutOrder = 3
+    copyLinkBtn.Parent = container
+
+    local copyLinkCorner = Instance.new("UICorner")
+    copyLinkCorner.CornerRadius = UDim.new(0, 6)
+    copyLinkCorner.Parent = copyLinkBtn
+
+    local currentLink = ""
+
+    btn.MouseButton1Click:Connect(function()
+        btn.Text = "⏳ Subiendo..."
+        btn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+        setStatus("Subiendo " .. chunkName .. "...")
+
+        local ok, result = pcall(uploadToHastebin, chunkValue)
+        if ok and result then
+            currentLink = result
+            linkLabel.Text = result
+            linkLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
+            btn.Text = "✅ Subido"
+            btn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
+            copyLinkBtn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
+            copyLinkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            setStatus("✅ " .. chunkName .. " subido: " .. result, Color3.fromRGB(100, 255, 150))
+        else
+            linkLabel.Text = "❌ Error al subir"
+            linkLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+            btn.Text = "⬆ Reintentar"
+            btn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
+            setStatus("❌ Error en " .. chunkName .. ": " .. tostring(result), Color3.fromRGB(255, 90, 90))
+        end
+    end)
+
+    copyLinkBtn.MouseButton1Click:Connect(function()
+        if currentLink == "" then
+            setStatus("Sube el chunk primero", Color3.fromRGB(255, 200, 100))
+            return
+        end
+        local ok2, err2 = pcall(function()
+            setclipboard(currentLink)
         end)
-    end
+        if ok2 then
+            copyLinkBtn.Text = "✅ Link copiado!"
+            task.wait(1.5)
+            copyLinkBtn.Text = "📋 Copiar link"
+        else
+            setStatus("Error al copiar: " .. tostring(err2), Color3.fromRGB(255, 90, 90))
+        end
+    end)
+
+    return btn, linkLabel, function() return currentLink end
 end
 
--- ===== NAVEGACIÓN =====
-local allChunks = {}
-local fullResult = ""
+-- ===== CARGAR CHUNKS =====
+local chunkBlocks = {}
 
 local ok, err = pcall(function()
-    status("Buscando chunks...")
+    setStatus("Buscando chunks...")
 
     local controllers = RS:WaitForChild("Controllers", 5)
-    if not controllers then error("Falta Controllers") end
-
     local eventController = controllers:WaitForChild("EventController", 5)
-    if not eventController then error("Falta EventController") end
-
     local events = eventController:WaitForChild("Events", 5)
-    if not events then error("Falta Events") end
-
     local phase2 = events:WaitForChild("Phase 2: Galaxy Introduction", 5)
-    if not phase2 then error("Falta Phase 2: Galaxy Introduction") end
-
     local cutscene = phase2:WaitForChild("Cutscene", 5)
-    if not cutscene then error("Falta Cutscene") end
 
     local allChildren = cutscene:GetChildren()
     addDebugLine("Hijos en Cutscene: " .. #allChildren)
@@ -264,43 +308,64 @@ local ok, err = pcall(function()
     end
 
     if #chunks == 0 then
-        errorMsg("No se encontraron Chunk_N StringValues")
+        setStatus("❌ No se encontraron chunks", Color3.fromRGB(255, 90, 90))
         return
     end
 
     table.sort(chunks, function(a, b) return a.n < b.n end)
-    status("✅ " .. #chunks .. " chunks encontrados")
+    setStatus("✅ " .. #chunks .. " chunks listos para subir")
 
-    local lines = {}
     for i, c in ipairs(chunks) do
-        allChunks[i] = c
-        addChunkBlock(c.name, c.value, i)
-        table.insert(lines, c.name .. ": " .. c.value)
+        local uploadBtnRef, linkLabelRef, getLinkFn = addChunkBlock(c.name, c.value, i)
+        table.insert(chunkBlocks, {
+            name = c.name,
+            value = c.value,
+            uploadBtn = uploadBtnRef,
+            getLink = getLinkFn
+        })
     end
 
-    fullResult = table.concat(lines, "\n")
-    addDebugLine("Total: " .. #fullResult .. " chars", Color3.fromRGB(100, 255, 150))
+    addDebugLine("Usa '⬆ Subir todos' o sube cada uno individualmente", Color3.fromRGB(100, 255, 150))
 end)
 
 if not ok then
-    errorMsg("Error: " .. tostring(err))
+    setStatus("❌ Error: " .. tostring(err), Color3.fromRGB(255, 90, 90))
 end
 
--- ===== COPIAR TODO =====
-copyBtn.MouseButton1Click:Connect(function()
-    if fullResult == "" then
-        errorMsg("No hay datos.")
+-- ===== SUBIR TODOS =====
+uploadBtn.MouseButton1Click:Connect(function()
+    if #chunkBlocks == 0 then
+        setStatus("No hay chunks cargados", Color3.fromRGB(255, 200, 100))
         return
     end
-    local ok2, err2 = pcall(function()
-        setclipboard(fullResult)
-    end)
-    if ok2 then
-        copyBtn.Text = "✅ ¡Todo copiado!"
-    else
-        copyBtn.Text = "❌ Error — usa los botones por chunk"
-        errorMsg("setclipboard falló con el texto completo: " .. tostring(err2))
+
+    uploadBtn.Text = "⏳ Subiendo..."
+    uploadBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+
+    local links = {}
+    for _, block in ipairs(chunkBlocks) do
+        setStatus("Subiendo " .. block.name .. "...")
+        local ok2, result = pcall(uploadToHastebin, block.value)
+        if ok2 and result then
+            table.insert(links, block.name .. ": " .. result)
+        else
+            table.insert(links, block.name .. ": ERROR - " .. tostring(result))
+        end
+        task.wait(0.3) -- evitar rate limit
     end
-    task.wait(2)
-    copyBtn.Text = "Copiar TODO al portapapeles"
+
+    -- Subir índice con todos los links
+    local index = table.concat(links, "\n")
+    local ok3, indexLink = pcall(uploadToHastebin, index)
+
+    uploadBtn.Text = "✅ Todos subidos"
+    uploadBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
+
+    if ok3 and indexLink then
+        setStatus("✅ Índice de links: " .. indexLink, Color3.fromRGB(100, 255, 150))
+        addDebugLine("📋 Índice: " .. indexLink, Color3.fromRGB(100, 255, 150))
+        pcall(function() setclipboard(indexLink) end)
+    else
+        setStatus("✅ Subidos — revisa cada chunk", Color3.fromRGB(100, 255, 150))
+    end
 end)
