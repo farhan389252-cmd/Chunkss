@@ -46,7 +46,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Chunk Exporter — Hastebin"
+titleLabel.Text = "Chunk Exporter — dpaste"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 15
@@ -115,7 +115,7 @@ local uploadBtn = Instance.new("TextButton")
 uploadBtn.Size = UDim2.new(1, -20, 0, 36)
 uploadBtn.Position = UDim2.new(0, 10, 1, -46)
 uploadBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 100)
-uploadBtn.Text = "⬆ Subir todos los chunks a Hastebin"
+uploadBtn.Text = "⬆ Subir todos los chunks a dpaste"
 uploadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 uploadBtn.Font = Enum.Font.GothamBold
 uploadBtn.TextSize = 14
@@ -143,21 +143,17 @@ local function addDebugLine(text, color)
     lbl.Parent = scrollFrame
 end
 
--- Sube texto a Hastebin y devuelve el link
-local function uploadToHastebin(text)
+-- ===== UPLOAD A DPASTE =====
+local function uploadToDpaste(text)
     local response = HttpService:PostAsync(
-        "https://hastebin.com/documents",
-        text,
-        Enum.HttpContentType.TextPlain
+        "https://dpaste.com/api/v2/",
+        "content=" .. HttpService:UrlEncode(text) .. "&syntax=text&expiry_days=7",
+        Enum.HttpContentType.ApplicationUrlEncoded
     )
-    local data = HttpService:JSONDecode(response)
-    if data and data.key then
-        return "https://hastebin.com/" .. data.key
-    end
-    return nil
+    return response and response:match("https://dpaste%.com/%S+")
 end
 
--- Crea bloque visual por chunk con botón de subir y link
+-- ===== BLOQUE POR CHUNK =====
 local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     local container = Instance.new("Frame")
     container.Size = UDim2.new(1, 0, 0, 0)
@@ -183,7 +179,6 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     innerLayout.Padding = UDim.new(0, 4)
     innerLayout.Parent = container
 
-    -- Header
     local header = Instance.new("TextLabel")
     header.Size = UDim2.new(1, 0, 0, 20)
     header.BackgroundTransparency = 1
@@ -195,7 +190,6 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     header.LayoutOrder = 0
     header.Parent = container
 
-    -- Link label (se llena después de subir)
     local linkLabel = Instance.new("TextLabel")
     linkLabel.Size = UDim2.new(1, 0, 0, 18)
     linkLabel.BackgroundTransparency = 1
@@ -208,7 +202,6 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     linkLabel.LayoutOrder = 1
     linkLabel.Parent = container
 
-    -- Botón subir este chunk
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 30)
     btn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
@@ -223,7 +216,6 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
     btnCorner.CornerRadius = UDim.new(0, 6)
     btnCorner.Parent = btn
 
-    -- Botón copiar link
     local copyLinkBtn = Instance.new("TextButton")
     copyLinkBtn.Size = UDim2.new(1, 0, 0, 30)
     copyLinkBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
@@ -245,7 +237,7 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
         btn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
         setStatus("Subiendo " .. chunkName .. "...")
 
-        local ok, result = pcall(uploadToHastebin, chunkValue)
+        local ok, result = pcall(uploadToDpaste, chunkValue)
         if ok and result then
             currentLink = result
             linkLabel.Text = result
@@ -254,13 +246,13 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
             btn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
             copyLinkBtn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
             copyLinkBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            setStatus("✅ " .. chunkName .. " subido: " .. result, Color3.fromRGB(100, 255, 150))
+            setStatus("✅ " .. chunkName .. ": " .. result, Color3.fromRGB(100, 255, 150))
         else
             linkLabel.Text = "❌ Error al subir"
             linkLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
             btn.Text = "⬆ Reintentar"
             btn.BackgroundColor3 = Color3.fromRGB(50, 110, 190)
-            setStatus("❌ Error en " .. chunkName .. ": " .. tostring(result), Color3.fromRGB(255, 90, 90))
+            setStatus("❌ Error: " .. tostring(result), Color3.fromRGB(255, 90, 90))
         end
     end)
 
@@ -281,7 +273,7 @@ local function addChunkBlock(chunkName, chunkValue, layoutOrder)
         end
     end)
 
-    return btn, linkLabel, function() return currentLink end
+    return function() return currentLink end
 end
 
 -- ===== CARGAR CHUNKS =====
@@ -313,19 +305,18 @@ local ok, err = pcall(function()
     end
 
     table.sort(chunks, function(a, b) return a.n < b.n end)
-    setStatus("✅ " .. #chunks .. " chunks listos para subir")
+    setStatus("✅ " .. #chunks .. " chunks listos")
 
     for i, c in ipairs(chunks) do
-        local uploadBtnRef, linkLabelRef, getLinkFn = addChunkBlock(c.name, c.value, i)
+        local getLinkFn = addChunkBlock(c.name, c.value, i)
         table.insert(chunkBlocks, {
             name = c.name,
             value = c.value,
-            uploadBtn = uploadBtnRef,
             getLink = getLinkFn
         })
     end
 
-    addDebugLine("Usa '⬆ Subir todos' o sube cada uno individualmente", Color3.fromRGB(100, 255, 150))
+    addDebugLine("Sube cada chunk individualmente o usa el botón de abajo", Color3.fromRGB(100, 255, 150))
 end)
 
 if not ok then
@@ -345,25 +336,25 @@ uploadBtn.MouseButton1Click:Connect(function()
     local links = {}
     for _, block in ipairs(chunkBlocks) do
         setStatus("Subiendo " .. block.name .. "...")
-        local ok2, result = pcall(uploadToHastebin, block.value)
+        local ok2, result = pcall(uploadToDpaste, block.value)
         if ok2 and result then
             table.insert(links, block.name .. ": " .. result)
         else
             table.insert(links, block.name .. ": ERROR - " .. tostring(result))
         end
-        task.wait(0.3) -- evitar rate limit
+        task.wait(0.5)
     end
 
     -- Subir índice con todos los links
     local index = table.concat(links, "\n")
-    local ok3, indexLink = pcall(uploadToHastebin, index)
+    local ok3, indexLink = pcall(uploadToDpaste, index)
 
     uploadBtn.Text = "✅ Todos subidos"
     uploadBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
 
     if ok3 and indexLink then
-        setStatus("✅ Índice de links: " .. indexLink, Color3.fromRGB(100, 255, 150))
-        addDebugLine("📋 Índice: " .. indexLink, Color3.fromRGB(100, 255, 150))
+        setStatus("✅ Índice: " .. indexLink, Color3.fromRGB(100, 255, 150))
+        addDebugLine("📋 Índice de links: " .. indexLink, Color3.fromRGB(100, 255, 150))
         pcall(function() setclipboard(indexLink) end)
     else
         setStatus("✅ Subidos — revisa cada chunk", Color3.fromRGB(100, 255, 150))
