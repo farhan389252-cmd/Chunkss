@@ -6,6 +6,8 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+local MAX_CHARS = 10000
+
 -- ===== VENTANA PRINCIPAL =====
 local gui = Instance.new("ScreenGui")
 gui.Name = "ChunkExporter"
@@ -34,7 +36,7 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = titleBar
 
-local titleFix = Instance.new("Frame") -- tapa las esquinas inferiores de la barra
+local titleFix = Instance.new("Frame")
 titleFix.Size = UDim2.new(1, 0, 0, 12)
 titleFix.Position = UDim2.new(0, 0, 1, -12)
 titleFix.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
@@ -45,7 +47,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -80, 1, 0)
 titleLabel.Position = UDim2.new(0, 15, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Chunk Exporter — Phase 2: Galaxy Introduction"
+titleLabel.Text = "Chunk Exporter — Cutscene"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 15
@@ -70,10 +72,22 @@ closeBtn.MouseButton1Click:Connect(function()
 	gui:Destroy()
 end)
 
--- ===== ÁREA DE TEXTO (SCROLLABLE) =====
+-- ===== ÁREA DE STATUS (arriba, chica) =====
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -20, 0, 20)
+statusLabel.Position = UDim2.new(0, 10, 0, 46)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = ""
+statusLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+statusLabel.Font = Enum.Font.Code
+statusLabel.TextSize = 13
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = main
+
+-- ===== ÁREA DE TEXTO (SCROLLABLE, con lista de labels) =====
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(1, -20, 1, -95)
-scrollFrame.Position = UDim2.new(0, 10, 0, 50)
+scrollFrame.Size = UDim2.new(1, -20, 1, -76)
+scrollFrame.Position = UDim2.new(0, 10, 0, 70)
 scrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
 scrollFrame.BorderSizePixel = 0
 scrollFrame.ScrollBarThickness = 6
@@ -85,73 +99,228 @@ local scrollCorner = Instance.new("UICorner")
 scrollCorner.CornerRadius = UDim.new(0, 8)
 scrollCorner.Parent = scrollFrame
 
-local textBox = Instance.new("TextBox")
-textBox.Size = UDim2.new(1, -16, 0, 0)
-textBox.Position = UDim2.new(0, 8, 0, 8)
-textBox.AutomaticSize = Enum.AutomaticSize.Y
-textBox.BackgroundTransparency = 1
-textBox.MultiLine = true
-textBox.ClearTextOnFocus = false
-textBox.TextEditable = false
-textBox.TextWrapped = true
-textBox.TextXAlignment = Enum.TextXAlignment.Left
-textBox.TextYAlignment = Enum.TextYAlignment.Top
-textBox.TextColor3 = Color3.fromRGB(220, 220, 220)
-textBox.Font = Enum.Font.Code
-textBox.TextSize = 14
-textBox.Text = "Cargando chunks..."
-textBox.Parent = scrollFrame
+local listLayout = Instance.new("UIListLayout")
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 6)
+listLayout.Parent = scrollFrame
 
--- ===== BOTÓN COPIAR =====
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(1, -20, 0, 36)
-copyBtn.Position = UDim2.new(0, 10, 1, -46)
-copyBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 220)
-copyBtn.Text = "Copiar al portapapeles"
-copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 15
-copyBtn.Parent = main
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 8)
+padding.PaddingLeft = UDim.new(0, 8)
+padding.PaddingRight = UDim.new(0, 8)
+padding.PaddingBottom = UDim.new(0, 8)
+padding.Parent = scrollFrame
 
-local copyCorner = Instance.new("UICorner")
-copyCorner.CornerRadius = UDim.new(0, 8)
-copyCorner.Parent = copyBtn
+-- ===== STATUS/LOG FUNCTIONS =====
+local function status(msg, delay)
+	statusLabel.Text = msg
+	statusLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
+	task.wait(delay or 0.4)
+end
 
--- ===== OBTENER Y ORDENAR DATOS =====
-local eventController = RS:WaitForChild("Controllers"):WaitForChild("EventController")
-local phase2 = eventController:WaitForChild("Phase 2: Galaxy Introduction")
+local function errorMsg(msg)
+	statusLabel.Text = "[ERROR] " .. msg
+	statusLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+	warn("[ChunkExporter] " .. msg)
+end
 
-local chunks = {}
-for _, child in ipairs(phase2:GetChildren()) do
-	local num = child.Name:match("^Chunk_(%d+)$")
-	if num and child:IsA("StringValue") then
-		table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
+local function addDebugLine(text, color)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(1, 0, 0, 18)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.TextColor3 = color or Color3.fromRGB(255, 200, 100)
+	lbl.Font = Enum.Font.Code
+	lbl.TextSize = 13
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = scrollFrame
+	return lbl
+end
+
+-- Divide un string en pedazos de máximo maxChars
+local function splitIntoParts(str, maxChars)
+	local parts = {}
+	local len = #str
+	if len == 0 then
+		table.insert(parts, "")
+		return parts
 	end
+	local i = 1
+	while i <= len do
+		local j = math.min(i + maxChars - 1, len)
+		table.insert(parts, str:sub(i, j))
+		i = j + 1
+	end
+	return parts
 end
 
-table.sort(chunks, function(a, b) return a.n < b.n end)
+-- Crea un bloque por cada PARTE de un chunk, con su propio botón de copiar
+local function addChunkPartBlock(chunkName, partIndex, totalParts, partText)
+	local container = Instance.new("Frame")
+	container.Size = UDim2.new(1, 0, 0, 0)
+	container.AutomaticSize = Enum.AutomaticSize.Y
+	container.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+	container.Parent = scrollFrame
 
-local lines = {}
-for _, c in ipairs(chunks) do
-	table.insert(lines, c.name .. ": " .. c.value)
-end
+	local containerCorner = Instance.new("UICorner")
+	containerCorner.CornerRadius = UDim.new(0, 6)
+	containerCorner.Parent = container
 
-local result = table.concat(lines, "\n")
-textBox.Text = result
+	local containerPad = Instance.new("UIPadding")
+	containerPad.PaddingTop = UDim.new(0, 6)
+	containerPad.PaddingBottom = UDim.new(0, 6)
+	containerPad.PaddingLeft = UDim.new(0, 6)
+	containerPad.PaddingRight = UDim.new(0, 6)
+	containerPad.Parent = container
 
--- ===== COPIAR =====
-copyBtn.MouseButton1Click:Connect(function()
-	local success = pcall(function()
-		setclipboard(result)
+	-- Header con nombre + parte + botón copiar
+	local header = Instance.new("Frame")
+	header.Size = UDim2.new(1, 0, 0, 26)
+	header.BackgroundTransparency = 1
+	header.Parent = container
+
+	local headerLabel = Instance.new("TextLabel")
+	headerLabel.Size = UDim2.new(1, -90, 1, 0)
+	headerLabel.BackgroundTransparency = 1
+	local title = chunkName
+	if totalParts > 1 then
+		title = title .. " (Parte " .. partIndex .. "/" .. totalParts .. ")"
+	end
+	headerLabel.Text = title .. "  [" .. #partText .. " chars]"
+	headerLabel.TextColor3 = Color3.fromRGB(120, 200, 255)
+	headerLabel.Font = Enum.Font.GothamBold
+	headerLabel.TextSize = 13
+	headerLabel.TextXAlignment = Enum.TextXAlignment.Left
+	headerLabel.Parent = header
+
+	local copyPartBtn = Instance.new("TextButton")
+	copyPartBtn.Size = UDim2.new(0, 84, 0, 24)
+	copyPartBtn.Position = UDim2.new(1, -84, 0, 1)
+	copyPartBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 220)
+	copyPartBtn.Text = "Copiar"
+	copyPartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	copyPartBtn.Font = Enum.Font.GothamBold
+	copyPartBtn.TextSize = 13
+	copyPartBtn.Parent = header
+
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 6)
+	btnCorner.Parent = copyPartBtn
+
+	copyPartBtn.MouseButton1Click:Connect(function()
+		local success, err = pcall(function()
+			setclipboard(partText)
+		end)
+		if success then
+			copyPartBtn.Text = "¡Listo!"
+		else
+			copyPartBtn.Text = "Error"
+			warn("[ChunkExporter] setclipboard falló: " .. tostring(err))
+		end
+		task.wait(1.2)
+		copyPartBtn.Text = "Copiar"
 	end)
 
-	if success then
-		copyBtn.Text = "¡Copiado!"
-	else
-		copyBtn.Text = "Error al copiar (revisa Output)"
-		print(result)
+	-- Vista previa del contenido (recortada si es muy larga, solo visual)
+	local preview = Instance.new("TextLabel")
+	preview.Size = UDim2.new(1, 0, 0, 0)
+	preview.Position = UDim2.new(0, 0, 0, 28)
+	preview.AutomaticSize = Enum.AutomaticSize.Y
+	preview.BackgroundTransparency = 1
+	local previewText = partText
+	if #previewText > 300 then
+		previewText = previewText:sub(1, 300) .. "..."
+	end
+	preview.Text = (previewText ~= "" and previewText) or "(vacío)"
+	preview.TextColor3 = Color3.fromRGB(190, 190, 190)
+	preview.Font = Enum.Font.Code
+	preview.TextSize = 12
+	preview.TextWrapped = true
+	preview.TextXAlignment = Enum.TextXAlignment.Left
+	preview.TextYAlignment = Enum.TextYAlignment.Top
+	preview.Parent = container
+
+	container.Size = UDim2.new(1, 0, 0, 28)
+end
+
+-- ===== BÚSQUEDA SEGURA =====
+local function safeWaitForChild(parent, name, timeout)
+	timeout = timeout or 5
+	local ok, result = pcall(function()
+		local obj = parent:WaitForChild(name, timeout)
+		if not obj then
+			error("No se encontró \"" .. name .. "\" dentro de \"" .. parent.Name .. "\" (timeout)")
+		end
+		return obj
+	end)
+	if not ok then
+		errorMsg(result)
+		return nil
+	end
+	return result
+end
+
+-- ===== NAVEGACIÓN =====
+-- Ruta: ReplicatedStorage > Controllers > EventController > Events > "Phase 2: Galaxy Introduction" > Cutscene
+local ok, err = pcall(function()
+
+	status("Entrando a ReplicatedStorage...")
+	local controllers = safeWaitForChild(RS, "Controllers")
+	if not controllers then error("Detenido: falta Controllers") end
+
+	status("Entré a Controllers...")
+	local eventController = safeWaitForChild(controllers, "EventController")
+	if not eventController then error("Detenido: falta EventController") end
+
+	status("Entré ahora a EventController...")
+	local events = safeWaitForChild(eventController, "Events")
+	if not events then error("Detenido: falta Events") end
+
+	status("Entrando a Events...")
+	local phase2 = safeWaitForChild(events, "Phase 2: Galaxy Introduction")
+	if not phase2 then error("Detenido: falta Phase 2: Galaxy Introduction") end
+
+	status("Entre ahorita sí a Phase 2: Galaxy Introduction...")
+	local cutscene = safeWaitForChild(phase2, "Cutscene")
+	if not cutscene then error("Detenido: falta Cutscene") end
+
+	status("Cutscene...")
+
+	local allChildren = cutscene:GetChildren()
+	addDebugLine("Hijos totales en Cutscene: " .. #allChildren)
+	for _, child in ipairs(allChildren) do
+		addDebugLine("  -> " .. child.Name .. " (" .. child.ClassName .. ")", Color3.fromRGB(150,150,150))
 	end
 
-	task.wait(1.5)
-	copyBtn.Text = "Copiar al portapapeles"
+	-- ===== OBTENER Y ORDENAR CHUNKS =====
+	local chunks = {}
+	for _, child in ipairs(allChildren) do
+		local num = child.Name:match("^Chunk_(%d+)$")
+		if num and child:IsA("StringValue") then
+			table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
+		end
+	end
+
+	if #chunks == 0 then
+		errorMsg("No se encontraron StringValues con formato Chunk_N dentro de Cutscene (revisa la lista de arriba)")
+		return
+	end
+
+	table.sort(chunks, function(a, b) return a.n < b.n end)
+
+	local totalParts = 0
+	for _, c in ipairs(chunks) do
+		local parts = splitIntoParts(c.value, MAX_CHARS)
+		for i, part in ipairs(parts) do
+			addChunkPartBlock(c.name, i, #parts, part)
+			totalParts = totalParts + 1
+		end
+	end
+
+	status("Listo! (" .. #chunks .. " chunks, " .. totalParts .. " partes de copiado)")
+
 end)
+
+if not ok then
+	errorMsg("Error inesperado: " .. tostring(err))
+end
