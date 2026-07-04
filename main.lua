@@ -6,7 +6,7 @@ local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local PART_SIZE = 50000 -- caracteres por botón
+local PART_SIZE = 10000 -- caracteres por botón
 
 -- ===== GUI =====
 local gui = Instance.new("ScreenGui")
