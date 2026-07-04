@@ -117,7 +117,7 @@ local copyCorner = Instance.new("UICorner")
 copyCorner.CornerRadius = UDim.new(0, 8)
 copyCorner.Parent = copyBtn
 
--- ===== FUNCIÓN PARA IR AGREGANDO LÍNEAS DE PROGRESO =====
+-- ===== LOG / STATUS =====
 local log = {}
 local function status(msg, delay)
 	table.insert(log, msg)
@@ -125,61 +125,102 @@ local function status(msg, delay)
 	task.wait(delay or 0.4)
 end
 
--- ===== NAVEGACIÓN CON MENSAJES =====
-status("Entrando a ReplicatedStorage...")
-local controllers = RS:WaitForChild("Controllers")
-
-status("Entré a Controllers...")
-local eventController = controllers:WaitForChild("EventController")
-
-status("Entré ahora a EventController...")
-local events = eventController:WaitForChild("Events")
-
-status("Entrando a Events...")
-local phase2 = events:WaitForChild("Phase 2: Galaxy Introduction")
-
-status("Entre ahorita sí a Phase 2: Galaxy Introduction...")
-local cutscene = phase2:WaitForChild("Cutscene")
-
-status("Cutscene...")
-
--- ===== OBTENER Y ORDENAR CHUNKS =====
-local chunks = {}
-for _, child in ipairs(cutscene:GetChildren()) do
-	local num = child.Name:match("^Chunk_(%d+)$")
-	if num and child:IsA("StringValue") then
-		table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
-	end
+local function errorMsg(msg)
+	table.insert(log, "[ERROR] " .. msg)
+	textBox.Text = table.concat(log, "\n")
+	textBox.TextColor3 = Color3.fromRGB(255, 90, 90)
 end
 
-table.sort(chunks, function(a, b) return a.n < b.n end)
-
-status("Listo!")
-
-local lines = {}
-for _, c in ipairs(chunks) do
-	table.insert(lines, c.name .. ": " .. c.value)
-end
-
-local result = table.concat(lines, "\n")
-
--- Añadir los chunks al final del log de progreso
-table.insert(log, result)
-textBox.Text = table.concat(log, "\n")
-
--- ===== COPIAR =====
-copyBtn.MouseButton1Click:Connect(function()
-	local success = pcall(function()
-		setclipboard(result)
+-- ===== BUSCAR CON TIMEOUT + MANEJO DE ERROR =====
+local function safeWaitForChild(parent, name, timeout)
+	timeout = timeout or 5
+	local ok, result = pcall(function()
+		local obj = parent:WaitForChild(name, timeout)
+		if not obj then
+			error("No se encontró \"" .. name .. "\" dentro de \"" .. parent.Name .. "\" (timeout)")
+		end
+		return obj
 	end)
 
-	if success then
-		copyBtn.Text = "¡Copiado!"
-	else
-		copyBtn.Text = "Error al copiar (revisa Output)"
-		print(result)
+	if not ok then
+		errorMsg(result)
+		return nil
 	end
 
-	task.wait(1.5)
-	copyBtn.Text = "Copiar al portapapeles"
+	return result
+end
+
+-- ===== NAVEGACIÓN =====
+local success = pcall(function()
+
+	status("Entrando a ReplicatedStorage...")
+	local controllers = safeWaitForChild(RS, "Controllers")
+	if not controllers then error("Detenido: falta Controllers") end
+
+	status("Entré a Controllers...")
+	local eventController = safeWaitForChild(controllers, "EventController")
+	if not eventController then error("Detenido: falta EventController") end
+
+	status("Entré ahora a EventController...")
+	local events = safeWaitForChild(eventController, "Events")
+	if not events then error("Detenido: falta Events") end
+
+	status("Entrando a Events...")
+	local phase2 = safeWaitForChild(events, "Phase 2: Galaxy Introduction")
+	if not phase2 then error("Detenido: falta Phase 2: Galaxy Introduction") end
+
+	status("Entre ahorita sí a Phase 2: Galaxy Introduction...")
+	local cutscene = safeWaitForChild(phase2, "Cutscene")
+	if not cutscene then error("Detenido: falta Cutscene") end
+
+	status("Cutscene...")
+
+	-- ===== OBTENER Y ORDENAR CHUNKS =====
+	local chunks = {}
+	for _, child in ipairs(cutscene:GetChildren()) do
+		local num = child.Name:match("^Chunk_(%d+)$")
+		if num and child:IsA("StringValue") then
+			table.insert(chunks, {n = tonumber(num), name = child.Name, value = child.Value})
+		end
+	end
+
+	if #chunks == 0 then
+		errorMsg("No se encontraron StringValues con formato Chunk_N dentro de Cutscene")
+		return
+	end
+
+	table.sort(chunks, function(a, b) return a.n < b.n end)
+
+	status("Listo!")
+
+	local lines = {}
+	for _, c in ipairs(chunks) do
+		table.insert(lines, c.name .. ": " .. c.value)
+	end
+
+	local result = table.concat(lines, "\n")
+	table.insert(log, result)
+	textBox.Text = table.concat(log, "\n")
+
+	-- ===== COPIAR =====
+	copyBtn.MouseButton1Click:Connect(function()
+		local ok = pcall(function()
+			setclipboard(result)
+		end)
+
+		if ok then
+			copyBtn.Text = "¡Copiado!"
+		else
+			copyBtn.Text = "Error al copiar"
+			errorMsg("No se pudo usar setclipboard: revisa si está disponible fuera del Command Bar.")
+		end
+
+		task.wait(1.5)
+		copyBtn.Text = "Copiar al portapapeles"
+	end)
+
 end)
+
+if not success then
+	errorMsg("Ocurrió un error inesperado durante la ejecución del script.")
+end
